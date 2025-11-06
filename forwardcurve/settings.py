@@ -50,7 +50,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'ForwardCurveProject.urls'
+ROOT_URLCONF = 'forwardcurve.urls'
 
 TEMPLATES = [
     {
