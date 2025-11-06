@@ -1,9 +1,9 @@
 import pandas as pd
-import numpy as np
 from django.shortcuts import render
 from .forms import PlantParametersForm
 import pyomo.environ as pyo
-import tempfile
+import matplotlib
+matplotlib.use('Agg')  # for servers with no GUI
 import matplotlib.pyplot as plt
 import io
 import base64
@@ -17,9 +17,11 @@ def upload_view(request):
             file = request.FILES["file"]
             dam_euro = pd.read_excel(file)
 
+            # Convert EUR/MWh → BGN/MWh
             bgn_euro_rate = 1.95583
             dam_bgn = dam_euro.values * bgn_euro_rate
 
+            # We take only 1 year of hourly prices
             years = 1
             period = years * 365
             market_price = dam_bgn[:period*24].flatten()
@@ -44,9 +46,9 @@ def upload_view(request):
             model.hour = pyo.RangeSet(0, n_hours - 1)
 
             # Variables
-            model.u = pyo.Var(model.hour, within=pyo.Binary)
-            model.v = pyo.Var(model.hour, within=pyo.Binary)
-            model.p = pyo.Var(model.hour, within=pyo.NonNegativeReals)
+            model.u = pyo.Var(model.hour, within=pyo.Binary)  # On/off
+            model.v = pyo.Var(model.hour, within=pyo.Binary)  # Start indicator
+            model.p = pyo.Var(model.hour, within=pyo.NonNegativeReals)  # MW
 
             # Constraints
             model.gen_limit_upper = pyo.Constraint(model.hour, rule=lambda m,h: m.p[h] <= max_power * m.u[h])
@@ -72,13 +74,13 @@ def upload_view(request):
 
             power = [pyo.value(model.p[t]) for t in T]
 
-            # Plot result
-            fig, ax = plt.subplots(figsize=(10,5))
+            # --- Plot result ---
+            fig, ax = plt.subplots(figsize=(10, 5))
             ax.plot(T, market_price, label="Market Price (BGN/MWh)")
             ax.step(T, power, where='mid', label="Power Output (MW)")
             ax.set_xlabel("Hour")
             ax.set_ylabel("Value")
-            ax.set_title("Unit Commitment Result")
+            ax.set_title("Power Plant Optimization Result")
             ax.legend()
             ax.grid(True)
 
@@ -87,9 +89,9 @@ def upload_view(request):
             buffer.seek(0)
             image_png = buffer.getvalue()
             buffer.close()
-            graphic = base64.b64encode(image_png).decode("utf-8")
+            image_base64 = base64.b64encode(image_png).decode("utf-8")
 
-            return render(request, "plotapp/result.html", {"graphic": graphic})
+            return render(request, "plotapp/result.html", {"image": image_base64})
 
     else:
         form = PlantParametersForm()

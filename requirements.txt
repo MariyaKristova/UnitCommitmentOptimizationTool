@@ -1,4 +1,9 @@
 Django>=4.2
+pyomo
 pandas
-openpyxl
+numpy
 matplotlib
+
+# Solver requirement (install manually):
+# macOS: brew install cbc
+# Windows: choco install coin-or-cbc or download binaries

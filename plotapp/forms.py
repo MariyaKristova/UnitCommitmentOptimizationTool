@@ -1,19 +1,18 @@
 from django import forms
 
 class PlantParametersForm(forms.Form):
-    min_power = forms.FloatField(label="Minimum Power (MW)", initial=270)
-    max_power = forms.FloatField(label="Maximum Power (MW)", initial=600)
-    ramp_up = forms.FloatField(label="Ramp Up (MW/hour)", initial=100)
-    ramp_down = forms.FloatField(label="Ramp Down (MW/hour)", initial=100)
+    min_power = forms.FloatField(initial=270, label="Minimum Power (MW)")
+    max_power = forms.FloatField(initial=600, label="Maximum Power (MW)")
+    ramp_up = forms.FloatField(initial=100, label="Ramp Up (MW/h)")
+    ramp_down = forms.FloatField(initial=100, label="Ramp Down (MW/h)")
+    emissions = forms.FloatField(initial=1.447, label="Emissions (t CO2/MWh)")
+    offered_price = forms.FloatField(initial=312, label="Offered Price (BGN)")
+    coal_price = forms.FloatField(initial=2.98e-6, label="Coal Price (BGN/kJ)")
+    heat_rate = forms.FloatField(initial=10322e3, label="Heat Rate (kJ/MWh)")
+    co2_price_bgn = forms.FloatField(initial=81.56 * 1.95583, label="CO2 Price (BGN/t)")
+    startup_cost = forms.FloatField(initial=49191, label="Startup Cost (BGN)")
+    max_startups = forms.IntegerField(initial=33, label="Max Startups")
+    min_cumulative_uptime = forms.FloatField(initial=0, label="Min Uptime (h)")
+    min_cumulative_power = forms.FloatField(initial=1858758, label="Min Cumulative Power (MWh)")
 
-    emissions = forms.FloatField(label="Emissions (t CO2/MWh)", initial=1.447)
-    coal_price = forms.FloatField(label="Coal Price (BGN/kJ)", initial=2.98e-6)
-    heat_rate = forms.FloatField(label="Heat Rate (kJ/MWh)", initial=10322e3)
-    co2_price_bgn = forms.FloatField(label="CO2 Price (BGN/t)", initial=81.56 * 1.95583)
-
-    startup_cost = forms.FloatField(label="Startup Cost (BGN)", initial=49191)
-    max_startups = forms.IntegerField(label="Maximum Startups Per Year", initial=33)
-
-    min_cumulative_power = forms.FloatField(label="Minimum Annual Generation (MWh)", initial=1858758)
-
-    file = forms.FileField(label="Upload DAM Price Excel File")
+    file = forms.FileField(label="Excel Forecast File (.xlsx)")
