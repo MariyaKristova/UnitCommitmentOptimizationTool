@@ -2,5 +2,20 @@
 
 <img src="data:image/png;base64,{{ image }}" alt="Forward Curve">
 
+<h3>Financial Metrics</h3>
+<ul>
+    <li>Total commitment: {{ financials.total_commitment_hours }} h</li>
+    <li>Relative uptime: {{ financials.relative_uptime_percent|floatformat:2 }}%</li>
+    <li>Total revenue: BGN {{ financials.total_revenue|floatformat:2 }}</li>
+    <li>Revenue per MWh: BGN {{ financials.revenue_per_MWh|floatformat:2 }}</li>
+    <li>Total profit: BGN {{ financials.total_profit|floatformat:2 }}</li>
+    <li>Profit per MWh: BGN {{ financials.profit_per_MWh|floatformat:2 }}</li>
+    <li>Total expenses: BGN {{ financials.total_expenses|floatformat:2 }}</li>
+    <li>Coal + CO2 expenses: BGN {{ financials.coal_co2_expenses|floatformat:2 }}</li>
+    <li>Total startups: {{ financials.total_startups }}</li>
+    <li>Startup cost total: BGN {{ financials.startup_cost_total|floatformat:2 }}</li>
+    <li>Startup cost per MWh: BGN {{ financials.startup_cost_per_MWh|floatformat:2 }}</li>
+</ul>
+
 <br><br>
 <a href="/">Upload another file</a>

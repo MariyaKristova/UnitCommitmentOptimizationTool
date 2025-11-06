@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Upload & Run Optimization</title>
-
+    <title>Unit Commitment Optimizer</title>
     <!-- Bootstrap CSS -->
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-
 </head>
 <body class="bg-light">
 
@@ -22,7 +20,9 @@
             <div class="col-md-6">
                 <label class="form-label fw-bold">{{ field.label }}</label>
                 {{ field }}
-                <small class="text-muted">{{ field.help_text }}</small>
+                {% if field.help_text %}
+                    <small class="text-muted">{{ field.help_text }}</small>
+                {% endif %}
                 {% if field.errors %}
                     <div class="text-danger small">{{ field.errors }}</div>
                 {% endif %}
