@@ -1,21 +1,78 @@
-<h2>Forward Curve Result</h2>
+{% extends "plotapp/base.html" %}
+{% block title %}Forward Curve Result{% endblock %}
 
-<img src="data:image/png;base64,{{ image }}" alt="Forward Curve">
+{% block content %}
+<div class="card shadow p-4 mb-4">
+  <h2 class="text-center mb-4">Forward Curve Result</h2>
 
-<h3>Financial Metrics</h3>
-<ul>
-    <li>Total commitment: {{ financials.total_commitment_hours }} h</li>
-    <li>Relative uptime: {{ financials.relative_uptime_percent|floatformat:2 }}%</li>
-    <li>Total revenue: BGN {{ financials.total_revenue|floatformat:2 }}</li>
-    <li>Revenue per MWh: BGN {{ financials.revenue_per_MWh|floatformat:2 }}</li>
-    <li>Total profit: BGN {{ financials.total_profit|floatformat:2 }}</li>
-    <li>Profit per MWh: BGN {{ financials.profit_per_MWh|floatformat:2 }}</li>
-    <li>Total expenses: BGN {{ financials.total_expenses|floatformat:2 }}</li>
-    <li>Coal + CO2 expenses: BGN {{ financials.coal_co2_expenses|floatformat:2 }}</li>
-    <li>Total startups: {{ financials.total_startups }}</li>
-    <li>Startup cost total: BGN {{ financials.startup_cost_total|floatformat:2 }}</li>
-    <li>Startup cost per MWh: BGN {{ financials.startup_cost_per_MWh|floatformat:2 }}</li>
-</ul>
+  <!-- Forward Curve Plot -->
+  <div class="text-center mb-4">
+    <img src="data:image/png;base64,{{ image }}" alt="Forward Curve" class="img-fluid">
+  </div>
 
-<br><br>
-<a href="/">Upload another file</a>
+  <!-- Financial Metrics -->
+  <h3>Financial Metrics</h3>
+  <div class="table-responsive">
+    <table class="table table-striped">
+      <tbody>
+        <tr>
+          <th>Total commitment</th>
+          <td>{{ financials.total_commitment_hours }} h</td>
+        </tr>
+        <tr>
+          <th>Relative uptime</th>
+          <td>{{ financials.relative_uptime_percent|floatformat:2 }}%</td>
+        </tr>
+        <tr>
+          <th>Total revenue</th>
+          <td>BGN {{ financials.total_revenue|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Revenue per MWh</th>
+          <td>BGN {{ financials.revenue_per_MWh|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Total profit</th>
+          <td>BGN {{ financials.total_profit|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Profit per MWh</th>
+          <td>BGN {{ financials.profit_per_MWh|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Total expenses</th>
+          <td>BGN {{ financials.total_expenses|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Expenses per MWh</th>
+          <td>BGN {{ financials.expenses_per_MWh|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Total coal and CO2 expenses</th>
+          <td>BGN {{ financials.coal_co2_expenses|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Coal and CO2 expenses per MWh</th>
+          <td>BGN {{ financials.coal_co2_per_MWh|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Total startups</th>
+          <td>{{ financials.total_startups }}</td>
+        </tr>
+        <tr>
+          <th>Startup cost total</th>
+          <td>BGN {{ financials.startup_cost_total|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <th>Startup cost per MWh</th>
+          <td>BGN {{ financials.startup_cost_per_MWh|floatformat:2 }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="text-center mt-4">
+    <a href="/" class="btn btn-secondary">Upload another file</a>
+  </div>
+</div>
+{% endblock %}

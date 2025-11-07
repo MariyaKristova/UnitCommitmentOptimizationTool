@@ -1,4 +1,7 @@
+import os
+
 import pandas as pd
+from django.conf import settings
 from django.shortcuts import render
 from .forms import PlantParametersForm
 import pyomo.environ as pyo
@@ -11,12 +14,13 @@ import numpy as np
 
 def upload_view(request):
     if request.method == "POST":
-        form = PlantParametersForm(request.POST, request.FILES)
+        form = PlantParametersForm(request.POST)
 
         if form.is_valid():
             # --- Read Excel file ---
-            file = request.FILES["file"]
-            dam_euro = pd.read_excel(file)
+            excel_file_name = form.cleaned_data["excel_file"]
+            excel_path = os.path.join(settings.DATA_INPUT_DIR, excel_file_name)
+            dam_euro = pd.read_excel(excel_path)
 
             # Convert EUR/MWh → BGN/MWh
             bgn_euro_rate = 1.95583

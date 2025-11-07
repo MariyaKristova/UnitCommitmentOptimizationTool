@@ -1,0 +1,71 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Unit Commitment Optimizer{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+      body {
+        background-color: #17a2b8;
+        color: #2c3e50;
+      }
+      .card {
+        border: none;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+      }
+      .btn-primary {
+        background-color: #17a2b8;
+        border-color: #17a2b8;
+      }
+      .btn-primary:hover {
+        background-color: #002244;
+        border-color: #002244;
+      }
+      footer {
+        padding: 2rem 0;
+        background-color: #003366;
+        color: white;
+      }
+      footer a {
+        color: white;
+        text-decoration: underline;
+      }
+      /* Уменьшаем отступы навбара и контейнера main */
+      nav.navbar {
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+      }
+      main.container {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+      }
+      .navbar-brand img {
+        height: 70px;
+      }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #17a2b8;">
+  <div class="container">
+    <a class="navbar-brand" href="#">
+      <img src="{% static 'plotapp/images/nek_logo.png' %}" alt="NEK EAD">
+    </a>
+  </div>
+</nav>
+
+<main class="container">
+    {% block content %}{% endblock %}
+</main>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

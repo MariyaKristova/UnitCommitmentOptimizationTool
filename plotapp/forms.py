@@ -1,6 +1,12 @@
+import os
 from django import forms
+from django.conf import settings
+
 
 class PlantParametersForm(forms.Form):
+
+    excel_file = forms.ChoiceField(label="Select Excel File")
+
     min_power = forms.FloatField(initial=270, label="Minimum Power (MW)")
     max_power = forms.FloatField(initial=600, label="Maximum Power (MW)")
     ramp_up = forms.FloatField(initial=100, label="Ramp Up (MW/h)")
@@ -15,4 +21,15 @@ class PlantParametersForm(forms.Form):
     min_cumulative_uptime = forms.FloatField(initial=0, label="Min Uptime (h)")
     min_cumulative_power = forms.FloatField(initial=1858758, label="Min Cumulative Power (MWh)")
 
-    file = forms.FileField(label="Excel Forecast File (.xlsx)")
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        data_dir = settings.DATA_INPUT_DIR
+        files = []
+        if os.path.exists(data_dir):
+            files = [
+                f for f in os.listdir(data_dir)
+                if f.lower().endswith((".xlsx", ".xls"))
+            ]
+
+        self.fields["excel_file"].choices = [(f, f) for f in files]
