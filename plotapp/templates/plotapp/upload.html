@@ -4,7 +4,7 @@
 {% block content %}
 <div class="card shadow p-4">
     <h2 class="text-center mb-4">Unit Commitment Optimizer</h2>
-    <form method="POST" enctype="multipart/form-data" class="row g-3">
+    <form id="uploadForm" method="POST" enctype="multipart/form-data" class="row g-3">
         {% csrf_token %}
         {% for field in form %}
         <div class="col-md-6">
@@ -19,10 +19,21 @@
         </div>
         {% endfor %}
         <div class="col-12 mt-3 text-center">
-            <button type="submit" class="btn btn-primary btn-lg">
-                Upload & Run Optimization
+            <button type="submit" id="submitButton" class="btn btn-primary btn-lg position-relative">
+                <span id="buttonText">Upload & Run Optimization</span>
+                <span id="spinner" class="spinner-border position-absolute text-light" role="status" aria-hidden="true" style="display:none;"></span>
             </button>
         </div>
     </form>
+
+    <script>
+    document.getElementById("uploadForm").addEventListener("submit", function() {
+        const text = document.getElementById("buttonText");
+        const spinner = document.getElementById("spinner");
+        
+        text.style.visibility = "hidden";
+        spinner.style.display = "inline-block";
+    });
+    </script>
 </div>
 {% endblock %}

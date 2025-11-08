@@ -46,6 +46,9 @@
       .navbar-brand img {
         height: 70px;
       }
+      .spinner-border {
+          left: 45%;
+      }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
@@ -68,7 +71,7 @@
 
         <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="menuDropdown"
             style="background-color: #003366; border-radius: 0;">
-            
+
             <li><a class="dropdown-item text-white" href="{% url 'all_results' %}">All results</a></li>
             <li><a class="dropdown-item text-white" href="{% url 'upload' %}">Upload new file</a></li>
 
