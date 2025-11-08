@@ -1,0 +1,32 @@
+{% extends "plotapp/base.html" %}
+{% block title %}All Results{% endblock %}
+
+{% block content %}
+
+<div class="card p-4">
+  <h3 class="mb-3">Saved Results</h3>
+
+    <table class="table table-striped">
+    <thead>
+    <tr>
+        <th>Run #</th>
+        <th>Date</th>
+        <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for run_id, date in results %}
+    <tr>
+        <td>{{ run_id }}</td>
+        <td>{{ date }}</td>
+        <td>
+            <a href="{% url 'view_result' run_id %}" class="btn btn-sm btn-primary">View</a>
+            
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    </table>
+</div>
+
+{% endblock %}

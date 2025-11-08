@@ -1,9 +1,11 @@
 import os
+import re
 
 import pandas as pd
 from django.conf import settings
-from django.http import Http404, FileResponse
-from django.shortcuts import render
+from django.contrib import messages
+from django.http import Http404, FileResponse, HttpResponseNotAllowed
+from django.shortcuts import render, redirect
 from .forms import PlantParametersForm
 import pyomo.environ as pyo
 import matplotlib
@@ -120,22 +122,67 @@ def upload_view(request):
                 "startup_cost_per_MWh": (sum(startups)*startup_cost)/sum(power) if sum(power)>0 else 0
             }
 
-            # --- ADDED: create unique file names using timestamp ---
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # <-- added timestamp
-            csv_filename = f"unit_commitment_results_{timestamp}.csv"  # <-- unique CSV filename
-            png_filename = f"unit_commitment_plot_{timestamp}.png"     # <-- unique PNG filename
-            output_csv_path = os.path.join(settings.DATA_OUTPUT_DIR, csv_filename)  # <-- full CSV path
-            output_png_path = os.path.join(settings.DATA_OUTPUT_DIR, png_filename)  # <-- full PNG path
+            # --- Generate next file index and names ---
+            # List existing result files
+            existing_files = os.listdir(settings.DATA_OUTPUT_DIR)
 
-            # --- ADDED: save CSV file to DATA_OUTPUT_DIR ---
-            df = pd.DataFrame({
+            # Extract existing numeric prefixes (0001, 0002, ...)
+            pattern = re.compile(r"^(\d{4})_")
+            numbers = []
+
+            for fname in existing_files:
+                match = pattern.match(fname)
+                if match:
+                    numbers.append(int(match.group(1)))
+
+            # Determine next index
+            next_index = max(numbers) + 1 if numbers else 1
+            index_str = str(next_index).zfill(4)  # 0001, 0002...
+
+            # Date stamp
+            date_str = datetime.now().strftime("%Y%m%d")
+
+            # File names
+            results_csv_filename = f"{index_str}_{date_str}_results.csv"
+            load_curve_csv_filename = f"{index_str}_{date_str}_load_curve.csv"
+            png_filename = f"{index_str}_{date_str}_plot.png"
+
+            results_csv_path = os.path.join(settings.DATA_OUTPUT_DIR, results_csv_filename)
+            load_curve_csv_path = os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv_filename)
+            png_path = os.path.join(settings.DATA_OUTPUT_DIR, png_filename)
+
+            # --- Save load curve CSV ---
+            df_load = pd.DataFrame({
                 "Hour": list(T),
                 "Power_Output_MW": power,
                 "Commitment": commitment,
                 "Startups": startups,
                 "Market_Price_BGN_per_MWh": market_price
             })
-            df.to_csv(output_csv_path, index=False)  # <-- saving CSV
+            df_load.to_csv(load_curve_csv_path, index=False)
+
+            # --- Save financials CSV ---
+            import csv
+            financials_csv = [
+                ("metric", "value", "unit"),
+                ("total_commitment_hours", financials["total_commitment_hours"], "h"),
+                ("relative_uptime_percent", financials["relative_uptime_percent"], "%"),
+                ("total_revenue", financials["total_revenue"], "BGN"),
+                ("revenue_per_MWh", financials["revenue_per_MWh"], "BGN"),
+                ("total_profit", financials["total_profit"], "BGN"),
+                ("profit_per_MWh", financials["profit_per_MWh"], "BGN"),
+                ("total_expenses", financials["total_expenses"], "BGN"),
+                ("expenses_per_MWh", financials["expenses_per_MWh"], "BGN"),
+                ("coal_co2_expenses", financials["coal_co2_expenses"], "BGN"),
+                ("coal_co2_per_MWh", financials["coal_co2_per_MWh"], "BGN"),
+                ("total_startups", financials["total_startups"], ""),
+                ("startup_cost_total", financials["startup_cost_total"], "BGN"),
+                ("startup_cost_per_MWh", financials["startup_cost_per_MWh"], "BGN"),
+            ]
+
+            with open(results_csv_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerows(financials_csv)
 
             # --- ADDED: save PNG file to DATA_OUTPUT_DIR ---
             fig, ax = plt.subplots(figsize=(12,6))
@@ -148,18 +195,19 @@ def upload_view(request):
             ax.legend()
             ax.grid(True)
             plt.tight_layout()
-            plt.savefig(output_png_path)  # <-- saving unique PNG
+            plt.savefig(png_path)  # <-- saving unique PNG
             plt.close(fig)
 
             # --- ADDED: encode PNG for displaying on the page ---
-            with open(output_png_path, "rb") as f:
+            with open(png_path, "rb") as f:
                 image_base64 = base64.b64encode(f.read()).decode("utf-8")
 
             # --- ADDED: pass file names to template for Download buttons ---
             return render(request, "plotapp/result.html", {
                 "image": image_base64,
                 "financials": financials,
-                "csv_file": csv_filename,
+                "results_csv_file": results_csv_filename,
+                "load_curve_csv_file": load_curve_csv_filename,
                 "png_file": png_filename
             })
 
@@ -168,8 +216,8 @@ def upload_view(request):
 
     return render(request, "plotapp/upload.html", {"form": form})
 
-def download_csv(request, filename):
-    """Serve CSV file from DATA_OUTPUT_DIR"""
+def download_curve_csv(request, filename):
+    """Serve CSV curve file from DATA_OUTPUT_DIR"""
     file_path = os.path.join(settings.DATA_OUTPUT_DIR, filename)
     if not os.path.exists(file_path):
         raise Http404("File not found")
@@ -181,3 +229,69 @@ def download_png(request, filename):
     if not os.path.exists(file_path):
         raise Http404("File not found")
     return FileResponse(open(file_path, "rb"), as_attachment=True, filename=filename)
+
+def download_results_csv(request, filename):
+    """Serve CSV results file from DATA_OUTPUT_DIR"""
+    file_path = os.path.join(settings.DATA_OUTPUT_DIR, filename)
+    if not os.path.exists(file_path):
+        raise Http404("File not found")
+    return FileResponse(open(file_path, "rb"), as_attachment=True, filename=filename)
+
+def all_results(request):
+    files = os.listdir(settings.DATA_OUTPUT_DIR)
+    results = []
+
+    for f in files:
+        if f.endswith("_results.csv"):
+            # format: 0001_20251108_results.csv
+            parts = f.split("_")  # ["0001","20251108","results.csv"]
+            run_id = parts[0]
+            date = parts[1]
+            results.append((run_id, date))
+
+    # sort descending by run_id
+    results = sorted(results, key=lambda x: int(x[0]), reverse=True)
+
+    return render(request, "plotapp/all_results.html", {"results": results})
+
+
+def view_result(request, run_id):
+    files = os.listdir(settings.DATA_OUTPUT_DIR)
+
+    results_csv = None
+    load_curve_csv = None
+    png_file = None
+
+    for f in files:
+        if f.startswith(run_id) and f.endswith("_results.csv"):
+            results_csv = f
+        elif f.startswith(run_id) and f.endswith("_load_curve.csv"):
+            load_curve_csv = f
+        elif f.startswith(run_id) and f.endswith("_plot.png"):
+            png_file = f
+
+    if not results_csv or not load_curve_csv or not png_file:
+        raise Http404("Result files not found")
+
+    # full paths
+    results_csv_path = os.path.join(settings.DATA_OUTPUT_DIR, results_csv)
+    load_curve_csv_path = os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv)
+    png_path = os.path.join(settings.DATA_OUTPUT_DIR, png_file)
+
+    # load CSV files
+    df_results = pd.read_csv(results_csv_path)
+    df_load_curve = pd.read_csv(load_curve_csv_path)
+
+    # encode PNG for page
+    with open(png_path, "rb") as f:
+        image_base64 = base64.b64encode(f.read()).decode("utf-8")
+
+    return render(request, "plotapp/view_result.html", {
+        "run_id": run_id,
+        "results_csv_file": results_csv,
+        "load_curve_csv_file": load_curve_csv,
+        "png_file": png_file,
+        "image": image_base64,
+        "financials_table": df_results.to_html(classes="table table-striped", index=False),
+        "load_curve_table": df_load_curve.to_html(classes="table table-striped", index=False)
+    })

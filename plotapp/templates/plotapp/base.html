@@ -56,6 +56,24 @@
     <a class="navbar-brand" href="#">
       <img src="{% static 'plotapp/images/nek_logo.png' %}" alt="NEK EAD">
     </a>
+      <!-- Menu -->
+    <ul class="navbar-nav ms-auto">
+
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle text-white fw-bold"
+           href="#" id="menuDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+           style="padding: 1.5rem 1rem;">
+          Menu
+        </a>
+
+        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="menuDropdown"
+            style="background-color: #003366; border-radius: 0;">
+            
+          <li><a class="dropdown-item text-white" href="{% url 'all_results' %}">All results</a></li>
+
+        </ul>
+      </li>
+    </ul>
   </div>
 </nav>
 
