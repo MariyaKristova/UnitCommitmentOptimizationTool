@@ -21,19 +21,22 @@
         <div class="col-12 mt-3 text-center">
             <button type="submit" id="submitButton" class="btn btn-primary btn-lg position-relative">
                 <span id="buttonText">Upload & Run Optimization</span>
-                <span id="spinner" class="spinner-border position-absolute text-light" role="status" aria-hidden="true" style="display:none;"></span>
+            </button>
+            <button id="loadingButton" class="btn custom-btn btn-lg text-light" type="button" disabled style="display:none;">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                Loading...
             </button>
         </div>
     </form>
 
     <script>
-    document.getElementById("uploadForm").addEventListener("submit", function() {
-        const text = document.getElementById("buttonText");
-        const spinner = document.getElementById("spinner");
-        
-        text.style.visibility = "hidden";
-        spinner.style.display = "inline-block";
-    });
+        document.getElementById("uploadForm").addEventListener("submit", function(e) {
+        const submitBtn = document.getElementById("submitButton");
+        const loadingBtn = document.getElementById("loadingButton");
+    
+        submitBtn.style.display = "none";
+        loadingBtn.style.display = "inline-block";
+        });
     </script>
 </div>
 {% endblock %}
