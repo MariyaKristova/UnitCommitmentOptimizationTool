@@ -5,8 +5,20 @@ from django.conf import settings
 
 class PlantParametersForm(forms.Form):
 
-    excel_file = forms.ChoiceField(label="Select Excel File")
+    start_date = forms.CharField(
+        label="Start Date (DD.MM)",
+        initial="01.01",
+        max_length=5,
+        widget=forms.TextInput(attrs={"placeholder": "DD.MM"})
+    )
+    end_date = forms.CharField(
+        label="End Date (DD.MM)",
+        initial="31.12",
+        max_length=5,
+        widget=forms.TextInput(attrs={"placeholder": "DD.MM"})
+    )
 
+    excel_file = forms.ChoiceField(label="SELECT EXCEL FILE")
     min_power = forms.FloatField(initial=270, label="Minimum Power (MW)")
     max_power = forms.FloatField(initial=600, label="Maximum Power (MW)")
     ramp_up = forms.FloatField(initial=100, label="Ramp Up (MW/h)")
@@ -20,6 +32,7 @@ class PlantParametersForm(forms.Form):
     max_startups = forms.IntegerField(initial=33, label="Max Startups")
     min_cumulative_uptime = forms.FloatField(initial=0, label="Min Uptime (h)")
     min_cumulative_power = forms.FloatField(initial=1858758, label="Min Cumulative Power (MWh)")
+
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
