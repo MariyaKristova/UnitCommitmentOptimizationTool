@@ -5,8 +5,6 @@ from django.conf import settings
 
 class PlantParametersForm(forms.Form):
 
-    start_date = forms.CharField(label="Start date (dd.mm)", initial="01.01")
-    end_date = forms.CharField(label="End date (dd.mm)", initial="31.12")
     excel_file = forms.ChoiceField(label="SELECT EXCEL FILE")
     min_power = forms.FloatField(initial=270, label="Minimum Power (MW)")
     max_power = forms.FloatField(initial=600, label="Maximum Power (MW)")

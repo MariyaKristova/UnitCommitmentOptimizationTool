@@ -14,28 +14,33 @@ import matplotlib
 matplotlib.use('Agg')
 
 
-# --- Utility functions ---
+# utility functions
 def read_excel_file(excel_filename):
     excel_path = os.path.join(settings.DATA_INPUT_DIR, excel_filename)
     dam_euro = pd.read_excel(excel_path)
     bgn_euro_rate = 1.95583
     dam_bgn = dam_euro.values * bgn_euro_rate
-    n_hours = 365 * 24
-    market_price = dam_bgn[:n_hours].flatten()
+    market_price = dam_bgn.flatten()
     return market_price
 
 
-def calculate_degradation(length):
-    months = range(175, 187)
-    month_lengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    degradation = np.zeros(length)
+def calculate_degradation(n_hours):
+    if n_hours == 365 * 24:
+        month_lengths = [31,28,31,30,31,30,31,31,30,31,30,31]
+    elif n_hours == 366 * 24:
+        month_lengths = [31,29,31,30,31,30,31,31,30,31,30,31]
+    else:
+        month_lengths = [n_hours // 12] * 12
+
+    degradation = np.zeros(n_hours)
     start_idx = 0
     for idx, month_length in enumerate(month_lengths):
         stop_idx = start_idx + month_length * 24
-        if stop_idx > length:
-            stop_idx = length
-        degradation[start_idx:stop_idx] = 1.071 + 0.0002 * months[idx]
+        if stop_idx > n_hours:
+            stop_idx = n_hours
+        degradation[start_idx:stop_idx] = 1.071 + 0.0002 * idx
         start_idx = stop_idx
+
     return degradation
 
 
@@ -44,12 +49,12 @@ def build_model(n_hours, market_price, params, degradation):
     model = pyo.ConcreteModel()
     model.hour = pyo.RangeSet(0, n_hours - 1)
 
-    # Variables
+    # variables
     model.u = pyo.Var(model.hour, within=pyo.Binary)
     model.v = pyo.Var(model.hour, within=pyo.Binary)
     model.p = pyo.Var(model.hour, within=pyo.NonNegativeReals)
 
-    # Constraints
+    # constraints
     model.gen_limit_upper = pyo.Constraint(model.hour, rule=lambda m, h: m.p[h] <= params["max_power"] * m.u[h])
     model.gen_limit_lower = pyo.Constraint(model.hour, rule=lambda m, h: m.p[h] >= params["min_power"] * m.u[h])
     model.ramp_up = pyo.Constraint(model.hour,
@@ -64,7 +69,7 @@ def build_model(n_hours, market_price, params, degradation):
     model.min_cumulative_uptime = pyo.Constraint(
         rule=lambda m: sum(m.u[t] for t in T) >= params["min_cumulative_uptime"])
 
-    # Objective
+    # objective
     def obj_rule(m):
         revenue = sum(m.p[t] * market_price[t] for t in T)
         gen_cost = sum((params["coal_price"] * params["heat_rate"] * degradation[t] + params["co2_price_bgn"] * params[
@@ -119,10 +124,10 @@ def save_results_csv(financials, load_curve_df, index_str, date_str):
     results_csv_filename = f"{index_str}_{date_str}_results.csv"
     load_curve_csv_filename = f"{index_str}_{date_str}_load_curve.csv"
 
-    # Save load curve
+    # save load curve
     load_curve_df.to_csv(os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv_filename), index=False)
 
-    # Save financials
+    # save financials
     import csv
     financials_csv = [("metric", "value", "unit")]
     for k, v in financials.items():
@@ -159,39 +164,39 @@ def generate_plot(T, market_price, power, commitment, max_power, index_str, date
     return png_filename, image_base64
 
 
-# --- Main view ---
+# main view
 def upload_view(request):
     if request.method == "POST":
         form = PlantParametersForm(request.POST)
         if form.is_valid():
-            # --- Read market price ---
+            # read market price
             market_price = read_excel_file(form.cleaned_data["excel_file"])
-            degradation = calculate_degradation(len(market_price))
+            n_hours = len(market_price)
+            degradation = calculate_degradation(n_hours)
 
-            # --- Prepare parameters ---
+            # prepare parameters
             params = {k: form.cleaned_data[k] for k in [
                 "min_power", "max_power", "ramp_up", "ramp_down", "emissions",
                 "coal_price", "heat_rate", "co2_price_bgn", "startup_cost",
                 "max_startups", "min_cumulative_power", "min_cumulative_uptime"
             ]}
 
-            # --- Build & solve model ---
-            n_hours = len(market_price)
+            # build & solve model
             model, T = build_model(n_hours, market_price, params, degradation)
             model = solve_model(model)
             power, commitment, startups = extract_results(model, T)
 
-            # --- Financial metrics ---
+            # financial metrics
             financials = compute_financials(power, commitment, startups, market_price, params)
 
-            # --- Determine next index ---
+            # determine next index
             existing_files = os.listdir(settings.DATA_OUTPUT_DIR)
             numbers = [int(m.group(1)) for f in existing_files if (m := re.match(r"^(\d{4})_", f))]
             next_index = max(numbers) + 1 if numbers else 1
             index_str = str(next_index).zfill(4)
             date_str = datetime.now().strftime("%Y%m%d")
 
-            # --- Save CSVs ---
+            # save CSVs
             load_curve_df = pd.DataFrame({
                 "Hour": list(T),
                 "Power_Output_MW": power,
@@ -201,7 +206,7 @@ def upload_view(request):
             })
             results_csv_file, load_curve_csv_file = save_results_csv(financials, load_curve_df, index_str, date_str)
 
-            # --- Save plot ---
+            # save plot
             png_file, image_base64 = generate_plot(T, market_price, power, commitment, params["max_power"], index_str,
                                                    date_str)
 
@@ -219,21 +224,21 @@ def upload_view(request):
 
 
 def download_curve_csv(request, filename):
-    """Serve CSV curve file from DATA_OUTPUT_DIR"""
+    # serve CSV curve file from DATA_OUTPUT_DIR
     file_path = os.path.join(settings.DATA_OUTPUT_DIR, filename)
     if not os.path.exists(file_path):
         raise Http404("File not found")
     return FileResponse(open(file_path, "rb"), as_attachment=True, filename=filename)
 
 def download_png(request, filename):
-    """Serve PNG file from DATA_OUTPUT_DIR"""
+    # serve PNG file from DATA_OUTPUT_DIR
     file_path = os.path.join(settings.DATA_OUTPUT_DIR, filename)
     if not os.path.exists(file_path):
         raise Http404("File not found")
     return FileResponse(open(file_path, "rb"), as_attachment=True, filename=filename)
 
 def download_results_csv(request, filename):
-    """Serve CSV results file from DATA_OUTPUT_DIR"""
+    # serve CSV results file from DATA_OUTPUT_DIR
     file_path = os.path.join(settings.DATA_OUTPUT_DIR, filename)
     if not os.path.exists(file_path):
         raise Http404("File not found")
