@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="card shadow p-4 mb-4">
-  <h2 class="text-center mb-4">Result</h2>
+  <h2 class="text-center mb-4">Result {{ run_id }}</h2>
 
   <!-- Forward Curve Plot -->
   <div class="text-center mb-4">
@@ -12,12 +12,11 @@
   </div>
 
   <!-- Download Buttons -->
-    {% if csv_file and png_file %}
     <div class="text-center mb-4">
-        <a href="{% url 'download_csv' csv_file %}" class="btn btn-primary me-2">Download CSV</a>
-        <a href="{% url 'download_png' png_file %}" class="btn btn-secondary">Download PNG</a>
+        <a class="btn btn-primary" href="{% url 'download_curve_csv' load_curve_csv_file %}">Download Load Curve CSV</a>
+        <a class="btn btn-primary" href="{% url 'download_png' png_file %}">Download PNG</a>
+        <a class="btn btn-primary" href="{% url 'download_results_csv' results_csv_file %}">Download Results CSV</a>
     </div>
-    {% endif %}
 
   <!-- Financial Metrics -->
   <h3>Financial Metrics</h3>
