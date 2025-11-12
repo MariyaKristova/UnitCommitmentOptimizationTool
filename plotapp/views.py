@@ -1,5 +1,6 @@
 import os
 import re
+import io
 import base64
 from datetime import datetime
 import pandas as pd
@@ -7,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pyomo.environ as pyo
 from django.conf import settings
-from .forms import PlantParametersForm
+from .forms import PlantParametersForm, ExtractPeriodForm
 from django.http import Http404, FileResponse, HttpResponse
 from django.shortcuts import render, redirect
 import matplotlib
@@ -17,11 +18,18 @@ matplotlib.use('Agg')
 # utility functions
 def read_excel_file(excel_filename):
     excel_path = os.path.join(settings.DATA_INPUT_DIR, excel_filename)
-    dam_euro = pd.read_excel(excel_path)
+    df = pd.read_excel(excel_path)
+
+    if 'DateTime' not in df.columns or 'Price' not in df.columns:
+        raise ValueError("Excel file must contain 'DateTime' and 'Price' columns")
+
+    df['Datetime'] = pd.to_datetime(df['DateTime'])
+
     bgn_euro_rate = 1.95583
-    dam_bgn = dam_euro.values * bgn_euro_rate
-    market_price = dam_bgn.flatten()
-    return market_price
+    df['Price'] = df['Price'] * bgn_euro_rate
+    market_price = df['Price'].to_numpy()
+
+    return df, market_price
 
 
 def calculate_degradation(n_hours):
@@ -163,7 +171,7 @@ def generate_plot(T, market_price, power, commitment, max_power, index_str, date
 
     return png_filename, image_base64
 
-def render_result_template(request, image_base64, financials, results_csv_file, load_curve_csv_file, png_file, run_id):
+def render_result_template(request, image_base64, financials, results_csv_file, load_curve_csv_file, png_file, run_id, extract_form):
     context = {
         "image": image_base64,
         "financials": financials,
@@ -171,6 +179,7 @@ def render_result_template(request, image_base64, financials, results_csv_file, 
         "load_curve_csv_file": load_curve_csv_file,
         "png_file": png_file,
         "run_id": run_id,
+        "extract_form": extract_form,
     }
     return render(request, "plotapp/result.html", context)
 
@@ -181,8 +190,10 @@ def upload_view(request):
         form = PlantParametersForm(request.POST)
         if form.is_valid():
             # read market price
-            market_price = read_excel_file(form.cleaned_data["excel_file"])
-            n_hours = len(market_price)
+            df, market_price = read_excel_file(form.cleaned_data["excel_file"])
+            n_hours = len(df)
+
+            # calculate degradation
             degradation = calculate_degradation(n_hours)
 
             # prepare parameters
@@ -200,15 +211,16 @@ def upload_view(request):
             # financial metrics
             financials = compute_financials(power, commitment, startups, market_price, params)
 
-            # determine next index
+            # generate run_id and date_str
             existing_files = os.listdir(settings.DATA_OUTPUT_DIR)
             numbers = [int(m.group(1)) for f in existing_files if (m := re.match(r"^(\d{4})_", f))]
             next_index = max(numbers) + 1 if numbers else 1
             run_id = str(next_index).zfill(4)
             date_str = datetime.now().strftime("%Y%m%d")
 
-            # save CSVs
+            # save load curve with DateTime
             load_curve_df = pd.DataFrame({
+                'DateTime': df['DateTime'],
                 "Hour": list(T),
                 "Power_Output_MW": power,
                 "Commitment": commitment,
@@ -221,6 +233,8 @@ def upload_view(request):
             png_file, image_base64 = generate_plot(T, market_price, power, commitment, params["max_power"], run_id,
                                                    date_str)
 
+            extract_form = ExtractPeriodForm()
+
             return render_result_template(
                 request,
                 image_base64,
@@ -228,7 +242,8 @@ def upload_view(request):
                 results_csv_file,
                 load_curve_csv_file,
                 png_file,
-                run_id=run_id
+                run_id=run_id,
+                extract_form=extract_form,
             )
 
     else:
@@ -255,6 +270,9 @@ def view_result(request, run_id):
     with open(png_path, "rb") as f:
         image_base64 = base64.b64encode(f.read()).decode("utf-8")
 
+    # initialize extract form
+    extract_form = ExtractPeriodForm()
+
     return render_result_template(
         request,
         image_base64,
@@ -262,7 +280,8 @@ def view_result(request, run_id):
         results_csv_file,
         load_curve_csv_file,
         png_file,
-        run_id=run_id
+        run_id=run_id,
+        extract_form=extract_form
     )
 
 
@@ -286,55 +305,6 @@ def download_results_csv(request, filename):
     if not os.path.exists(file_path):
         raise Http404("File not found")
     return FileResponse(open(file_path, "rb"), as_attachment=True, filename=filename)
-
-
-# def extract_period(request, run_id):
-#     start_date = request.GET.get("start_date")
-#     end_date = request.GET.get("end_date")
-#
-#     if not start_date or not end_date:
-#         return HttpResponse("Start and end dates are required", status=400)
-#
-#     load_curve_csv_file = f"{run_id}_load_curve.csv"
-#     load_curve_path = os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv_file)
-#     df_load_curve = pd.read_csv(load_curve_path)
-#
-#     mask = (df_load_curve['Date'] >= start_date) & (df_load_curve['Date'] <= end_date)
-#     df_filtered = df_load_curve.loc[mask]
-#
-#     fig, ax = plt.subplots(figsize=(12, 6))
-#     ax.plot(df_filtered['Hour'], df_filtered['Market_Price_BGN_per_MWh'], color='black', label="Market Price")
-#     ax.step(df_filtered['Hour'], df_filtered['Power_Output_MW'], where='mid', label="Power Output")
-#     ax.fill_between(df_filtered['Hour'], 0, df_filtered['Commitment']*df_filtered['Power_Output_MW'].max(),
-#                     color='lightgreen', alpha=0.3, step='mid', label="Committed")
-#     ax.set_xlabel("Hour")
-#     ax.set_ylabel("Value")
-#     ax.legend()
-#     ax.grid(True)
-#     plt.tight_layout()
-#
-#     buf = io.BytesIO()
-#     plt.savefig(buf, format='png')
-#     plt.close(fig)
-#     buf.seek(0)
-#     image_base64 = base64.b64encode(buf.read()).decode("utf-8")
-#
-#     return render(request, "plotapp/result.html", {
-#         "run_id": run_id,
-#         "financials": {},
-#         "load_curve_table": df_filtered.to_html(classes="table table-striped", index=False),
-#         "image": image_base64,
-#         "csv_inline": df_filtered.to_csv(index=False)
-#     })
-
-
-def download_filtered_csv(request):
-    csv_content = request.GET.get("csv")
-    if not csv_content:
-        return HttpResponse("No CSV data provided", status=400)
-    response = HttpResponse(csv_content, content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="extracted_period.csv"'
-    return response
 
 
 def all_results(request):
@@ -372,4 +342,121 @@ def delete_result(request, run_id):
         raise Http404("No files found to delete for this run_id")
 
     return redirect("all_results")
+
+
+def extracted_result(request, run_id):
+    import glob
+
+    # get form data
+    form = ExtractPeriodForm(request.GET)
+    if not form.is_valid():
+        return HttpResponse("invalid start or end date", status=400)
+
+    start_date = form.cleaned_data["start_date"]
+    end_date = form.cleaned_data["end_date"]
+
+    # convert to datetime with arbitrary year (for comparison)
+    start_dt = datetime(2020, start_date.month, start_date.day)
+    end_dt = datetime(2020, end_date.month, end_date.day)
+
+    # find load curve file by pattern
+    pattern = os.path.join(settings.DATA_OUTPUT_DIR, f"{run_id}_*_load_curve.csv")
+    files = glob.glob(pattern)
+    if not files:
+        return HttpResponse("load curve file not found", status=404)
+    load_curve_path = files[0]
+
+    # load full csv
+    df = pd.read_csv(load_curve_path)
+    df['DateTime'] = pd.to_datetime(df['DateTime'])
+    df['month_day'] = df['DateTime'].dt.strftime('%d.%m')
+
+    # convert df dates to same comparable datetime (year 2020)
+    df['month_day_dt'] = pd.to_datetime(df['month_day'] + '.2020', format='%d.%m.%Y')
+
+    # filter period
+    df_filtered = df.loc[(df['month_day_dt'] >= start_dt) & (df['month_day_dt'] <= end_dt)].copy()
+    if df_filtered.empty:
+        return HttpResponse("no data for selected period", status=404)
+
+    # extract arrays for financials
+    power = df_filtered['Power_Output_MW'].to_numpy()
+    commitment = df_filtered['Commitment'].to_numpy()
+    startups = df_filtered['Startups'].to_numpy()
+    market_price = df_filtered['Market_Price_BGN_per_MWh'].to_numpy()
+
+    total_power = power.sum()
+    revenue = (power * market_price).sum()
+
+    params = {
+        "coal_price": 2.98e-6,
+        "heat_rate": 10322e3,
+        "co2_price_bgn": 81.56 * 1.95583,
+        "startup_cost": 49191,
+        "emissions": 1.447
+    }
+
+    gen_cost = ((params["coal_price"] * params["heat_rate"] + params["co2_price_bgn"] * params["emissions"]) * power).sum()
+    startup_total = (startups * params["startup_cost"]).sum()
+    total_profit = revenue - gen_cost - startup_total
+
+    financials = {
+        "total_commitment_hours": commitment.sum(),
+        "relative_uptime_percent": (commitment.sum() / len(power)) * 100 if len(power) > 0 else 0,
+        "total_revenue": revenue,
+        "revenue_per_MWh": revenue / total_power if total_power > 0 else 0,
+        "total_profit": total_profit,
+        "profit_per_MWh": total_profit / total_power if total_power > 0 else 0,
+        "total_expenses": gen_cost + startup_total,
+        "expenses_per_MWh": (gen_cost + startup_total) / total_power if total_power > 0 else 0,
+        "coal_co2_expenses": gen_cost,
+        "coal_co2_per_MWh": gen_cost / total_power if total_power > 0 else 0,
+        "total_startups": startups.sum(),
+        "startup_cost_total": startup_total,
+        "startup_cost_per_MWh": startup_total / total_power if total_power > 0 else 0
+    }
+
+    # plot
+    T_filtered = df_filtered['Hour'].to_numpy()
+    fig, ax = plt.subplots(figsize=(12,6))
+    ax.plot(T_filtered, market_price, color='black', label='Market Price')
+    ax.step(T_filtered, power, where='mid', label='Power Output', linewidth=2)
+    ax.fill_between(T_filtered, 0, [max(power) * u for u in commitment], color='lightgreen', alpha=0.3, step='mid', label='Committed')
+    ax.set_xlabel("Hour")
+    ax.set_ylabel("Value")
+    ax.legend()
+    ax.grid(True)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png')
+    plt.close(fig)
+    buf.seek(0)
+    image_base64 = base64.b64encode(buf.read()).decode('utf-8')
+
+    csv_buf = io.StringIO()
+    df_filtered.to_csv(csv_buf, index=False)
+    csv_content = csv_buf.getvalue()
+
+    return render(request, "plotapp/extracted_result.html", {
+        "run_id": run_id,
+        "financials": financials,
+        "image": image_base64,
+        "csv_inline": csv_content,
+        "load_curve_table": df_filtered.to_html(classes="table table-striped", index=False)
+    })
+
+
+
+# def download_filtered_csv(request):
+#     if request.method != "POST":
+#         return HttpResponse("method not allowed", status=405)
+#
+#     csv_content = request.POST.get("csv")
+#     if not csv_content:
+#         return HttpResponse("no CSV data provided", status=400)
+#
+#     response = HttpResponse(csv_content, content_type='text/csv')
+#     response['Content-Disposition'] = 'attachment; filename="extracted_period.csv"'
+#     return response
 

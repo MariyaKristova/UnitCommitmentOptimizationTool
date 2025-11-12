@@ -35,6 +35,7 @@ class PlantParametersForm(forms.Form):
         self.fields["excel_file"].choices = [(f, f) for f in files]
 
 
-class ExtractForm(forms.Form):
-    start_date = forms.DateField()
-    end_date = forms.DateField()
+class ExtractPeriodForm(forms.Form):
+    start_date = forms.DateField(input_formats=['%d.%m'], required=True, widget=forms.TextInput(attrs={'placeholder': 'DD.MM'}))
+    end_date = forms.DateField(input_formats=['%d.%m'], required=True, widget=forms.TextInput(attrs={'placeholder': 'DD.MM'}))
+

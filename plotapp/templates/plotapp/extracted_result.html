@@ -1,17 +1,17 @@
 {% extends "plotapp/base.html" %}
 {% load formatters %}
-{% block title %}Unit Commitment Optimization{% endblock %}
+{% block title %}Extracted Result{% endblock %}
 
 {% block content %}
 <div class="card shadow p-4 mb-4">
-  <h2 class="text-center mb-4">Result {{ run_id }}</h2>
+  <h2 class="text-center mb-4">Extracted Result {{ run_id }}</h2>
 
-  <!-- Forward Curve Plot -->
+  <!-- forward curve plot for selected period -->
   <div class="text-center mb-4">
     <img src="data:image/png;base64,{{ image }}" alt="Forward Curve" class="img-fluid">
   </div>
 
-  <!-- Financial Metrics -->
+  <!-- financial metrics for selected period -->
   <h3>Financial Metrics</h3>
   <div class="table-responsive">
     <table class="table table-striped">
@@ -71,26 +71,19 @@
       </tbody>
     </table>
   </div>
-    
-    <!-- Download Buttons -->
-  <div class="text-center mb-4">
-    {% if load_curve_csv_file %}
-      <a class="btn btn-primary" href="{% url 'download_curve_csv' load_curve_csv_file %}">Download Load Curve CSV</a>
-    {% endif %}
-    {% if png_file %}
-      <a class="btn btn-primary" href="{% url 'download_png' png_file %}">Download PNG</a>
-    {% endif %}
-    {% if results_csv_file %}
-      <a class="btn btn-primary" href="{% url 'download_results_csv' results_csv_file %}">Download Results CSV</a>
-    {% endif %}
-  
-    <!-- Extract Period Form -->
+
+  <!-- download filtered CSV without saving on server -->
+{#  <div class="text-center mb-4">#}
+{#    <form method="post" action="{% url 'download_filtered_csv' %}">#}
+{#      {% csrf_token %}#}
+{#      <input type="hidden" name="csv" value="{{ csv_inline|escape }}">#}
+{#      <button type="submit" class="btn btn-primary">Download Filtered CSV</button>#}
+{#    </form>#}
+{#  </div>#}
+
   <div class="text-center mt-4">
-      <form method="get" action="{% url 'extracted_result' run_id %}" class="text-center mb-4">
-        {{ extract_form.as_p }}
-        <button type="submit" class="btn btn-secondary">Extract period</button>
-      </form>
-      <a href="/" type="submit" class="btn btn-secondary">Upload another file</a>
+    <a href="{% url 'all_results' %}" class="btn btn-secondary">Back to All Results</a>
+    <a href="/" class="btn btn-secondary">Upload Another File</a>
   </div>
 </div>
 {% endblock %}
