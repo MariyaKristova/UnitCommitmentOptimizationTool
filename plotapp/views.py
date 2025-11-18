@@ -1,6 +1,7 @@
 import os
 import re
-import io
+import zipfile
+from io import StringIO, BytesIO
 import csv
 import base64
 from datetime import datetime
@@ -316,6 +317,163 @@ def download_results_csv(request, filename):
     return FileResponse(open(file_path, "rb"), as_attachment=True, filename=filename)
 
 
+def extracted_result_view(request, run_id):
+    # display extracted period result for a given run_id
+    files = os.listdir(settings.DATA_OUTPUT_DIR)
+
+    results_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_results.csv")), None)
+    load_curve_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_load_curve.csv")), None)
+    if not results_csv_file or not load_curve_csv_file:
+        raise Http404("required files not found")
+
+    # read load curve
+    load_curve_df = pd.read_csv(os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv_file), parse_dates=['DateTime'])
+
+    # read params from results csv
+    params = {}
+    with open(os.path.join(settings.DATA_OUTPUT_DIR, results_csv_file), newline="") as f:
+        reader = csv.reader(f)
+        section = "metrics"
+        for row in reader:
+            if row and row[0] == "---parameters---":
+                section = "params"
+                continue
+            if section == "params" and row:
+                key, value = row[0], row[1]
+                try:
+                    params[key] = float(value)
+                except:
+                    params[key] = value
+
+    extract_form = ExtractPeriodForm(request.GET or None)
+    financials = {}
+    image_base64 = ""
+    start_date = None
+    end_date = None
+
+    if extract_form.is_valid():
+        start_date = extract_form.cleaned_data['start_date']
+        end_date = extract_form.cleaned_data['end_date']
+
+        year = load_curve_df['DateTime'].dt.year.iloc[0]
+        start_dt = start_date.replace(year=year)
+        end_dt = end_date.replace(year=year)
+
+        # filter dataframe
+        mask = (load_curve_df['DateTime'] >= pd.Timestamp(start_dt)) & (load_curve_df['DateTime'] <= pd.Timestamp(end_dt))
+        period_df = load_curve_df.loc[mask].copy()
+        if period_df.empty:
+            raise Http404("no data for selected period")
+
+        # extract data for financials and plot
+        T = list(range(len(period_df)))
+        power = period_df["Power_Output_MW"].to_list()
+        commitment = period_df["Commitment"].to_list()
+        startups = period_df["Startups"].to_list()
+        market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
+        degradation = np.ones(len(period_df))
+
+        # recalc financials for period
+        financials = compute_financials(power, commitment, startups, market_price, params, degradation)
+
+        # generate plot
+        _, image_base64 = generate_plot(T, market_price, power, commitment, max(power), run_id, "extracted")
+
+    context = {
+        "image": image_base64,
+        "financials": financials,
+        "run_id": run_id,
+        "extract_form": extract_form,
+        "start_date": start_date.strftime("%d.%m") if start_date else "",
+        "end_date": end_date.strftime("%d.%m") if end_date else "",
+    }
+
+    return render(request, "plotapp/extracted_result.html", context)
+
+
+def download_extracted_zip(request, run_id):
+    # create zip with extracted period data
+    files = os.listdir(settings.DATA_OUTPUT_DIR)
+
+    results_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_results.csv")), None)
+    load_curve_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_load_curve.csv")), None)
+    if not results_csv_file or not load_curve_csv_file:
+        raise Http404("required files not found")
+
+    extract_form = ExtractPeriodForm(request.GET)
+    if not extract_form.is_valid():
+        raise Http404("invalid date range")
+
+    start_date = extract_form.cleaned_data['start_date']
+    end_date = extract_form.cleaned_data['end_date']
+
+    # read load curve
+    load_curve_df = pd.read_csv(os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv_file), parse_dates=['DateTime'])
+    year = load_curve_df['DateTime'].dt.year.iloc[0]
+    start_dt = start_date.replace(year=year)
+    end_dt = end_date.replace(year=year)
+    mask = (load_curve_df['DateTime'] >= pd.Timestamp(start_dt)) & (load_curve_df['DateTime'] <= pd.Timestamp(end_dt))
+    period_df = load_curve_df.loc[mask].copy()
+    if period_df.empty:
+        raise Http404("no data for selected period")
+
+    # read params from results csv
+    params = {}
+    with open(os.path.join(settings.DATA_OUTPUT_DIR, results_csv_file), newline="") as f:
+        reader = csv.reader(f)
+        section = "metrics"
+        for row in reader:
+            if row and row[0] == "---parameters---":
+                section = "params"
+                continue
+            if section == "params" and row:
+                key, value = row[0], row[1]
+                try:
+                    params[key] = float(value)
+                except:
+                    params[key] = value
+
+    # extract data for financials and plot
+    T = list(range(len(period_df)))
+    power = period_df["Power_Output_MW"].to_list()
+    commitment = period_df["Commitment"].to_list()
+    startups = period_df["Startups"].to_list()
+    market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
+    degradation = np.ones(len(period_df))
+
+    financials = compute_financials(power, commitment, startups, market_price, params, degradation)
+
+    # create in-memory zip
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zf:
+        # csv of period
+        period_csv_buffer = StringIO()
+        period_df.to_csv(period_csv_buffer, index=False)
+        zf.writestr(f"{run_id}_extracted_load_curve.csv", period_csv_buffer.getvalue())
+
+        # financials csv
+        fin_buffer = StringIO()
+        writer = csv.writer(fin_buffer)
+        writer.writerow(["metric", "value"])  # header
+        for k, v in financials.items():
+            writer.writerow([k, v])
+
+        # encode to bytes
+        fin_bytes = fin_buffer.getvalue().encode("utf-8")
+        zf.writestr(f"{run_id}_extracted_financials.csv", fin_bytes)
+
+        # png plot
+        png_filename, _ = generate_plot(T, market_price, power, commitment, max(power), run_id, "extracted")
+        png_path = os.path.join(settings.DATA_OUTPUT_DIR, png_filename)
+        with open(png_path, "rb") as f:
+            zf.writestr(f"{run_id}_extracted_plot.png", f.read())
+
+    zip_buffer.seek(0)
+    response = HttpResponse(zip_buffer, content_type="application/zip")
+    response['Content-Disposition'] = f'attachment; filename={run_id}_extracted.zip'
+    return response
+
+
 def all_results(request):
     files = os.listdir(settings.DATA_OUTPUT_DIR)
     results = []
@@ -351,10 +509,3 @@ def delete_result(request, run_id):
         raise Http404("No files found to delete for this run_id")
 
     return redirect("all_results")
-
-
-def extracted_result_view():
-    pass
-
-def download_extracted_zip():
-    pass
