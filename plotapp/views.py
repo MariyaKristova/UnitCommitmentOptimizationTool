@@ -10,6 +10,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pyomo.environ as pyo
 from django.conf import settings
+from pyomo.contrib.appsi.cmodel.appsi_cmodel import param
+
 from .forms import PlantParametersForm, ExtractPeriodForm
 from django.http import Http404, FileResponse, HttpResponse
 from django.shortcuts import render, redirect
@@ -378,7 +380,7 @@ def extracted_result_view(request, run_id):
         fig, ax = plt.subplots(figsize=(12, 6))
         ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
         ax.step(T, power, where='mid', label="Power Output (MW)", linewidth=2)
-        ax.fill_between(T, 0, [max(power) * u for u in commitment], color='lightgreen', alpha=0.3, step='mid',
+        ax.fill_between(T, 0, [params['max_power'] * u for u in commitment], color='lightgreen', alpha=0.3, step='mid',
                         label="Committed")
         ax.set_xlabel("Hour")
         ax.set_ylabel("Value")
@@ -476,7 +478,7 @@ def download_extracted_zip(request, run_id):
         fig, ax = plt.subplots(figsize=(12, 6))
         ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
         ax.step(T, power, where='mid', label="Power Output (MW)", linewidth=2)
-        ax.fill_between(T, 0, [max(power) * u for u in commitment], color='lightgreen', alpha=0.3, step='mid',
+        ax.fill_between(T, 0, [params['max_power'] * u for u in commitment], color='lightgreen', alpha=0.3, step='mid',
                         label="Committed")
         ax.set_xlabel("Hour")
         ax.set_ylabel("Value")
