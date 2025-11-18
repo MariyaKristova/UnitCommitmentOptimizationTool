@@ -1,0 +1,13 @@
+{% extends "plotapp/base.html" %}
+
+{% block title %}Page Not Found{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-center align-items-center" style="height: 70vh;">
+    <div class="text-center">
+        <h1 class="display-1 fw-bold mb-3" style="color: #003366;">404</h1>
+        <p class="fs-4 mb-4" style="color: white;">Sorry, the page you requested was not found.</p>
+        <a href="{% url 'upload' %}" class="btn btn-lg btn-primary">Go to Upload Page</a>
+    </div>
+</div>
+{% endblock %}

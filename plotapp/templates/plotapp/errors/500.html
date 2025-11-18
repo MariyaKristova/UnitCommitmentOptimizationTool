@@ -1,0 +1,13 @@
+{% extends "plotapp/base.html" %}
+
+{% block title %}Server Error{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-center align-items-center" style="height: 70vh;">
+    <div class="text-center">
+        <h1 class="display-1 fw-bold mb-3" style="color: #003366;">500</h1>
+        <p class="fs-4 mb-4" style="color: white;">Oops! Something went wrong on our end.</p>
+        <a href="{% url 'upload' %}" class="btn btn-lg btn-primary">Go to Upload Page</a>
+    </div>
+</div>
+{% endblock %}
