@@ -348,119 +348,112 @@ def delete_result(request, run_id):
     return redirect("all_results")
 
 
-def extracted_result(request, run_id):
-    import glob
-
-    # get form data
-    form = ExtractPeriodForm(request.GET)
-    if not form.is_valid():
-        return HttpResponse("invalid start or end date", status=400)
-
-    start_date = form.cleaned_data["start_date"]
-    end_date = form.cleaned_data["end_date"]
-
-    # convert to datetime with arbitrary year (for comparison)
-    start_dt = datetime(2020, start_date.month, start_date.day)
-    end_dt = datetime(2020, end_date.month, end_date.day)
-
-    # find load curve file by pattern
-    pattern = os.path.join(settings.DATA_OUTPUT_DIR, f"{run_id}_*_load_curve.csv")
-    files = glob.glob(pattern)
-    if not files:
-        return HttpResponse("load curve file not found", status=404)
-    load_curve_path = files[0]
-
-    # load full csv
-    df = pd.read_csv(load_curve_path)
-    df['DateTime'] = pd.to_datetime(df['DateTime'])
-    df['month_day'] = df['DateTime'].dt.strftime('%d.%m')
-
-    # convert df dates to same comparable datetime (year 2020)
-    df['month_day_dt'] = pd.to_datetime(df['month_day'] + '.2020', format='%d.%m.%Y')
-
-    # filter period
-    df_filtered = df.loc[(df['month_day_dt'] >= start_dt) & (df['month_day_dt'] <= end_dt)].copy()
-    if df_filtered.empty:
-        return HttpResponse("no data for selected period", status=404)
-
-    # extract arrays for financials
-    power = df_filtered['Power_Output_MW'].to_numpy()
-    commitment = df_filtered['Commitment'].to_numpy()
-    startups = df_filtered['Startups'].to_numpy()
-    market_price = df_filtered['Market_Price_BGN_per_MWh'].to_numpy()
-
-    total_power = power.sum()
-    revenue = (power * market_price).sum()
-
-    params = {
-        "coal_price": 2.98e-6,
-        "heat_rate": 10322e3,
-        "co2_price_bgn": 81.56 * 1.95583,
-        "startup_cost": 49191,
-        "emissions": 1.447
-    }
-
-    gen_cost = ((params["coal_price"] * params["heat_rate"] + params["co2_price_bgn"] * params["emissions"]) * power).sum()
-    startup_total = (startups * params["startup_cost"]).sum()
-    total_profit = revenue - gen_cost - startup_total
-
-    financials = {
-        "total_commitment_hours": commitment.sum(),
-        "relative_uptime_percent": (commitment.sum() / len(power)) * 100 if len(power) > 0 else 0,
-        "total_revenue": revenue,
-        "revenue_per_MWh": revenue / total_power if total_power > 0 else 0,
-        "total_profit": total_profit,
-        "profit_per_MWh": total_profit / total_power if total_power > 0 else 0,
-        "total_expenses": gen_cost + startup_total,
-        "expenses_per_MWh": (gen_cost + startup_total) / total_power if total_power > 0 else 0,
-        "coal_co2_expenses": gen_cost,
-        "coal_co2_per_MWh": gen_cost / total_power if total_power > 0 else 0,
-        "total_startups": startups.sum(),
-        "startup_cost_total": startup_total,
-        "startup_cost_per_MWh": startup_total / total_power if total_power > 0 else 0
-    }
-
-    # plot
-    T_filtered = df_filtered['Hour'].to_numpy()
-    fig, ax = plt.subplots(figsize=(12,6))
-    ax.plot(T_filtered, market_price, color='black', label='Market Price')
-    ax.step(T_filtered, power, where='mid', label='Power Output', linewidth=2)
-    ax.fill_between(T_filtered, 0, [max(power) * u for u in commitment], color='lightgreen', alpha=0.3, step='mid', label='Committed')
-    ax.set_xlabel("Hour")
-    ax.set_ylabel("Value")
-    ax.legend()
-    ax.grid(True)
-    fig.tight_layout()
-
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png')
-    plt.close(fig)
-    buf.seek(0)
-    image_base64 = base64.b64encode(buf.read()).decode('utf-8')
-
-    csv_buf = io.StringIO()
-    df_filtered.to_csv(csv_buf, index=False)
-    csv_content = csv_buf.getvalue()
-
-    return render(request, "plotapp/extracted_result.html", {
-        "run_id": run_id,
-        "financials": financials,
-        "image": image_base64,
-        "csv_inline": csv_content,
-        "load_curve_table": df_filtered.to_html(classes="table table-striped", index=False)
-    })
-
-
-
-# def download_filtered_csv(request):
-#     if request.method != "POST":
-#         return HttpResponse("method not allowed", status=405)
+# def extracted_result(request, run_id):
+#     import glob
 #
-#     csv_content = request.POST.get("csv")
-#     if not csv_content:
-#         return HttpResponse("no CSV data provided", status=400)
+#     # get form data
+#     form = ExtractPeriodForm(request.GET)
+#     if not form.is_valid():
+#         return HttpResponse("invalid start or end date", status=400)
 #
-#     response = HttpResponse(csv_content, content_type='text/csv')
-#     response['Content-Disposition'] = 'attachment; filename="extracted_period.csv"'
-#     return response
+#     start_date = form.cleaned_data["start_date"]
+#     end_date = form.cleaned_data["end_date"]
+#
+#     # convert to datetime with arbitrary year (for comparison)
+#     start_dt = datetime(2020, start_date.month, start_date.day)
+#     end_dt = datetime(2020, end_date.month, end_date.day)
+#
+#     # find load curve file by pattern
+#     pattern = os.path.join(settings.DATA_OUTPUT_DIR, f"{run_id}_*_load_curve.csv")
+#     files = glob.glob(pattern)
+#     if not files:
+#         return HttpResponse("load curve file not found", status=404)
+#     load_curve_path = files[0]
+#
+#     # load full csv
+#     df = pd.read_csv(load_curve_path)
+#     df['DateTime'] = pd.to_datetime(df['DateTime'])
+#     df['month_day'] = df['DateTime'].dt.strftime('%d.%m')
+#
+#     # convert df dates to same comparable datetime (year 2020)
+#     df['month_day_dt'] = pd.to_datetime(df['month_day'] + '.2020', format='%d.%m.%Y')
+#
+#     # filter period
+#     df_filtered = df.loc[(df['month_day_dt'] >= start_dt) & (df['month_day_dt'] <= end_dt)].copy()
+#     if df_filtered.empty:
+#         return HttpResponse("no data for selected period", status=404)
+#
+#     # extract arrays for financials
+#     power = df_filtered['Power_Output_MW'].to_numpy()
+#     commitment = df_filtered['Commitment'].to_numpy()
+#     startups = df_filtered['Startups'].to_numpy()
+#     market_price = df_filtered['Market_Price_BGN_per_MWh'].to_numpy()
+#
+#     total_power = power.sum()
+#     revenue = (power * market_price).sum()
+#
+#     params = {
+#         "coal_price": 2.98e-6,
+#         "heat_rate": 10322e3,
+#         "co2_price_bgn": 81.56 * 1.95583,
+#         "startup_cost": 49191,
+#         "emissions": 1.447
+#     }
+#
+#     gen_cost = ((params["coal_price"] * params["heat_rate"] + params["co2_price_bgn"] * params["emissions"]) * power).sum()
+#     startup_total = (startups * params["startup_cost"]).sum()
+#     total_profit = revenue - gen_cost - startup_total
+#
+#     financials = {
+#         "total_commitment_hours": commitment.sum(),
+#         "relative_uptime_percent": (commitment.sum() / len(power)) * 100 if len(power) > 0 else 0,
+#         "total_revenue": revenue,
+#         "revenue_per_MWh": revenue / total_power if total_power > 0 else 0,
+#         "total_profit": total_profit,
+#         "profit_per_MWh": total_profit / total_power if total_power > 0 else 0,
+#         "total_expenses": gen_cost + startup_total,
+#         "expenses_per_MWh": (gen_cost + startup_total) / total_power if total_power > 0 else 0,
+#         "coal_co2_expenses": gen_cost,
+#         "coal_co2_per_MWh": gen_cost / total_power if total_power > 0 else 0,
+#         "total_startups": startups.sum(),
+#         "startup_cost_total": startup_total,
+#         "startup_cost_per_MWh": startup_total / total_power if total_power > 0 else 0
+#     }
+#
+#     # plot
+#     T_filtered = df_filtered['Hour'].to_numpy()
+#     fig, ax = plt.subplots(figsize=(12,6))
+#     ax.plot(T_filtered, market_price, color='black', label='Market Price')
+#     ax.step(T_filtered, power, where='mid', label='Power Output', linewidth=2)
+#     ax.fill_between(T_filtered, 0, [max(power) * u for u in commitment], color='lightgreen', alpha=0.3, step='mid', label='Committed')
+#     ax.set_xlabel("Hour")
+#     ax.set_ylabel("Value")
+#     ax.legend()
+#     ax.grid(True)
+#     fig.tight_layout()
+#
+#     buf = io.BytesIO()
+#     fig.savefig(buf, format='png')
+#     plt.close(fig)
+#     buf.seek(0)
+#     image_base64 = base64.b64encode(buf.read()).decode('utf-8')
+#
+#     csv_buf = io.StringIO()
+#     df_filtered.to_csv(csv_buf, index=False)
+#     csv_content = csv_buf.getvalue()
+#
+#     return render(request, "plotapp/extracted_result.html", {
+#         "run_id": run_id,
+#         "financials": financials,
+#         "image": image_base64,
+#         "csv_inline": csv_content,
+#         "load_curve_table": df_filtered.to_html(classes="table table-striped", index=False)
+#     })
+#
 
+
+def extracted_result_view():
+    pass
+
+def download_extracted_zip():
+    pass

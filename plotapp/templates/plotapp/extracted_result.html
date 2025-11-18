@@ -72,18 +72,10 @@
     </table>
   </div>
 
-  <!-- download filtered CSV without saving on server -->
-{#  <div class="text-center mb-4">#}
-{#    <form method="post" action="{% url 'download_filtered_csv' %}">#}
-{#      {% csrf_token %}#}
-{#      <input type="hidden" name="csv" value="{{ csv_inline|escape }}">#}
-{#      <button type="submit" class="btn btn-primary">Download Filtered CSV</button>#}
-{#    </form>#}
-{#  </div>#}
-
   <div class="text-center mt-4">
-    <a href="{% url 'all_results' %}" class="btn btn-secondary">Back to All Results</a>
-    <a href="/" class="btn btn-secondary">Upload Another File</a>
+      <a href="{% url 'download_extracted_zip' run_id=run_id %}?start_date={{ start_date }}&end_date={{ end_date }}" class="btn btn-secondary">Download Extracted Result (ZIP)</a>
+      <a href="{% url 'all_results' %}" class="btn btn-secondary">Back to All Results</a>
+      <a href="/" class="btn btn-secondary">Upload Another File</a>
   </div>
 </div>
 {% endblock %}
