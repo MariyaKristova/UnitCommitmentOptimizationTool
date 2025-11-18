@@ -20,10 +20,13 @@ def read_excel_file(excel_filename):
     excel_path = os.path.join(settings.DATA_INPUT_DIR, excel_filename)
     df = pd.read_excel(excel_path)
 
+    if not os.path.exists(excel_path):
+        raise Http404(f"Excel file {excel_filename} not found")
+
     if 'DateTime' not in df.columns or 'Price' not in df.columns:
         raise ValueError("Excel file must contain 'DateTime' and 'Price' columns")
 
-    df['Datetime'] = pd.to_datetime(df['DateTime'])
+    df['DateTime'] = pd.to_datetime(df['DateTime'])
 
     bgn_euro_rate = 1.95583
     df['Price'] = df['Price'] * bgn_euro_rate
@@ -38,7 +41,7 @@ def calculate_degradation(n_hours):
     elif n_hours == 366 * 24:
         month_lengths = [31,29,31,30,31,30,31,31,30,31,30,31]
     else:
-        month_lengths = [n_hours // 12] * 12
+        raise ValueError("calculate_degradation: expected full year (365 or 366 days)")
 
     degradation = np.zeros(n_hours)
     start_idx = 0
@@ -102,12 +105,13 @@ def extract_results(model, T):
     return power, commitment, startups
 
 
-def compute_financials(power, commitment, startups, market_price, params):
-    revenue = sum(power[t] * market_price[t] for t in range(len(power)))
+def compute_financials(power, commitment, startups, market_price, params, degradation):
+    hours = len(power)
+    revenue = sum(power[t] * market_price[t] for t in range(hours))
     gen_cost = sum(
-        (params["coal_price"] * params["heat_rate"] + params["co2_price_bgn"] * params["emissions"]) * power[t] for t in
-        range(len(power)))
-    startup_total = sum(startups[t] * params["startup_cost"] for t in range(len(power)))
+        (params["coal_price"] * params["heat_rate"] * degradation[t] + params["co2_price_bgn"] * params["emissions"]) * power[t] for t in
+        range(hours))
+    startup_total = sum(startups[t] * params["startup_cost"] for t in range(hours))
     total_profit = revenue - gen_cost - startup_total
 
     total_power = sum(power)
@@ -209,7 +213,7 @@ def upload_view(request):
             power, commitment, startups = extract_results(model, T)
 
             # financial metrics
-            financials = compute_financials(power, commitment, startups, market_price, params)
+            financials = compute_financials(power, commitment, startups, market_price, params, degradation)
 
             # generate run_id and date_str
             existing_files = os.listdir(settings.DATA_OUTPUT_DIR)
