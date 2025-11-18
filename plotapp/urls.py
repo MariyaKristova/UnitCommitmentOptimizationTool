@@ -9,5 +9,7 @@ urlpatterns = [
     path("results/<str:run_id>/delete/", views.delete_result, name="delete_result"),
     path('download/curve_csv/<str:filename>/', views.download_curve_csv, name='download_curve_csv'),
     path('download/png/<str:filename>/', views.download_png, name='download_png'),
-    path('download/results_csv/<str:filename>/', views.download_png, name='download_results_csv'),
+    path('download/results_csv/<str:filename>/', views.download_results_csv, name='download_results_csv'),
 ]
+
+
