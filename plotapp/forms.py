@@ -11,6 +11,7 @@ class PlantParametersForm(forms.Form):
     ramp_up = forms.FloatField(initial=100, label="Ramp Up (MW/h)")
     ramp_down = forms.FloatField(initial=100, label="Ramp Down (MW/h)")
     emissions = forms.FloatField(initial=1.447, label="Emissions (t CO2/MWh)")
+    # offered price field is not being used for now
     # offered_price = forms.FloatField(initial=312, label="Offered Price (BGN)")
     coal_price = forms.FloatField(initial=2.98e-6, label="Coal Price (BGN/kJ)")
     heat_rate = forms.FloatField(initial=10322e3, label="Heat Rate (kJ/MWh)")
