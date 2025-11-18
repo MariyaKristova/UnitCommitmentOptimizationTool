@@ -20,10 +20,10 @@ matplotlib.use('Agg')
 # utility functions
 def read_excel_file(excel_filename):
     excel_path = os.path.join(settings.DATA_INPUT_DIR, excel_filename)
-    df = pd.read_excel(excel_path)
-
     if not os.path.exists(excel_path):
         raise Http404(f"Excel file {excel_filename} not found")
+
+    df = pd.read_excel(excel_path)
 
     if 'DateTime' not in df.columns or 'Price' not in df.columns:
         raise ValueError("Excel file must contain 'DateTime' and 'Price' columns")
@@ -318,7 +318,6 @@ def download_results_csv(request, filename):
 
 
 def extracted_result_view(request, run_id):
-    # display extracted period result for a given run_id
     files = os.listdir(settings.DATA_OUTPUT_DIR)
 
     results_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_results.csv")), None)
@@ -359,7 +358,6 @@ def extracted_result_view(request, run_id):
         start_dt = start_date.replace(year=year)
         end_dt = end_date.replace(year=year)
 
-        # filter dataframe
         mask = (load_curve_df['DateTime'] >= pd.Timestamp(start_dt)) & (load_curve_df['DateTime'] <= pd.Timestamp(end_dt))
         period_df = load_curve_df.loc[mask].copy()
         if period_df.empty:
@@ -373,11 +371,27 @@ def extracted_result_view(request, run_id):
         market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
         degradation = np.ones(len(period_df))
 
-        # recalc financials for period
+        # compute financials
         financials = compute_financials(power, commitment, startups, market_price, params, degradation)
 
-        # generate plot
-        _, image_base64 = generate_plot(T, market_price, power, commitment, max(power), run_id, "extracted")
+        # generate PNG in memory
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
+        ax.step(T, power, where='mid', label="Power Output (MW)", linewidth=2)
+        ax.fill_between(T, 0, [max(power) * u for u in commitment], color='lightgreen', alpha=0.3, step='mid',
+                        label="Committed")
+        ax.set_xlabel("Hour")
+        ax.set_ylabel("Value")
+        ax.set_title("Unit Commitment with Economic Dispatch (Extracted)")
+        ax.legend()
+        ax.grid(True)
+        plt.tight_layout()
+
+        png_buffer = BytesIO()
+        fig.savefig(png_buffer, format='png')
+        plt.close(fig)
+        png_buffer.seek(0)
+        image_base64 = base64.b64encode(png_buffer.read()).decode("utf-8")
 
     context = {
         "image": image_base64,
@@ -392,7 +406,6 @@ def extracted_result_view(request, run_id):
 
 
 def download_extracted_zip(request, run_id):
-    # create zip with extracted period data
     files = os.listdir(settings.DATA_OUTPUT_DIR)
 
     results_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_results.csv")), None)
@@ -446,32 +459,43 @@ def download_extracted_zip(request, run_id):
     # create in-memory zip
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, "w") as zf:
-        # csv of period
+        # CSV of period
         period_csv_buffer = StringIO()
         period_df.to_csv(period_csv_buffer, index=False)
         zf.writestr(f"{run_id}_extracted_load_curve.csv", period_csv_buffer.getvalue())
 
-        # financials csv
+        # Financials CSV
         fin_buffer = StringIO()
         writer = csv.writer(fin_buffer)
-        writer.writerow(["metric", "value"])  # header
+        writer.writerow(["metric", "value"])
         for k, v in financials.items():
             writer.writerow([k, v])
+        zf.writestr(f"{run_id}_extracted_financials.csv", fin_buffer.getvalue().encode("utf-8"))
 
-        # encode to bytes
-        fin_bytes = fin_buffer.getvalue().encode("utf-8")
-        zf.writestr(f"{run_id}_extracted_financials.csv", fin_bytes)
+        # PNG in memory
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
+        ax.step(T, power, where='mid', label="Power Output (MW)", linewidth=2)
+        ax.fill_between(T, 0, [max(power) * u for u in commitment], color='lightgreen', alpha=0.3, step='mid',
+                        label="Committed")
+        ax.set_xlabel("Hour")
+        ax.set_ylabel("Value")
+        ax.set_title("Unit Commitment with Economic Dispatch (Extracted)")
+        ax.legend()
+        ax.grid(True)
+        plt.tight_layout()
 
-        # png plot
-        png_filename, _ = generate_plot(T, market_price, power, commitment, max(power), run_id, "extracted")
-        png_path = os.path.join(settings.DATA_OUTPUT_DIR, png_filename)
-        with open(png_path, "rb") as f:
-            zf.writestr(f"{run_id}_extracted_plot.png", f.read())
+        png_buffer = BytesIO()
+        fig.savefig(png_buffer, format='png')
+        plt.close(fig)
+        png_buffer.seek(0)
+        zf.writestr(f"{run_id}_extracted_plot.png", png_buffer.read())
 
     zip_buffer.seek(0)
     response = HttpResponse(zip_buffer, content_type="application/zip")
     response['Content-Disposition'] = f'attachment; filename={run_id}_extracted.zip'
     return response
+
 
 
 def all_results(request):
