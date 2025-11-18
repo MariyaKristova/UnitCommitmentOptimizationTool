@@ -11,7 +11,7 @@ class PlantParametersForm(forms.Form):
     ramp_up = forms.FloatField(initial=100, label="Ramp Up (MW/h)")
     ramp_down = forms.FloatField(initial=100, label="Ramp Down (MW/h)")
     emissions = forms.FloatField(initial=1.447, label="Emissions (t CO2/MWh)")
-    offered_price = forms.FloatField(initial=312, label="Offered Price (BGN)")
+    # offered_price = forms.FloatField(initial=312, label="Offered Price (BGN)")
     coal_price = forms.FloatField(initial=2.98e-6, label="Coal Price (BGN/kJ)")
     heat_rate = forms.FloatField(initial=10322e3, label="Heat Rate (kJ/MWh)")
     co2_price_bgn = forms.FloatField(initial=81.56 * 1.95583, label="CO2 Price (BGN/t)")
@@ -38,4 +38,6 @@ class PlantParametersForm(forms.Form):
 class ExtractPeriodForm(forms.Form):
     start_date = forms.DateField(input_formats=['%d.%m'], required=True, widget=forms.TextInput(attrs={'placeholder': 'DD.MM'}))
     end_date = forms.DateField(input_formats=['%d.%m'], required=True, widget=forms.TextInput(attrs={'placeholder': 'DD.MM'}))
+
+
 
