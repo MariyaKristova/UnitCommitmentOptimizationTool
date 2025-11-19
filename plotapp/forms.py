@@ -1,10 +1,10 @@
 import os
+import pandas as pd
 from django import forms
 from django.conf import settings
 
 
 class PlantParametersForm(forms.Form):
-
     excel_file = forms.ChoiceField(label="SELECT EXCEL FILE")
     min_power = forms.FloatField(initial=270, label="Minimum Power (MW)")
     max_power = forms.FloatField(initial=600, label="Maximum Power (MW)")
@@ -21,7 +21,6 @@ class PlantParametersForm(forms.Form):
     min_cumulative_uptime = forms.FloatField(initial=0, label="Min Uptime (h)")
     min_cumulative_power = forms.FloatField(initial=1858758, label="Min Cumulative Power (MWh)")
 
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -35,10 +34,64 @@ class PlantParametersForm(forms.Form):
 
         self.fields["excel_file"].choices = [(f, f) for f in files]
 
+    def clean_excel_file(self):
+        excel_filename = self.cleaned_data.get('excel_file')
+        excel_path = os.path.join(settings.DATA_INPUT_DIR, excel_filename)
+
+        if not os.path.exists(excel_path):
+            raise forms.ValidationError(f"Excel file {excel_filename} not found on the server.")
+
+        try:
+            df = pd.read_excel(excel_path)
+        except Exception as e:
+            raise forms.ValidationError(f"Error reading Excel file: {e}")
+
+        if 'DateTime' not in df.columns or 'Price' not in df.columns:
+            raise forms.ValidationError("Excel file must contain 'DateTime' and 'Price' columns")
+
+        n_hours = df.shape[0]
+        if n_hours not in (365 * 24, 366 * 24):
+            raise forms.ValidationError(
+                f"Excel file must contain a full year of hourly data (8760 or 8784 rows), got {n_hours}"
+            )
+
+        return excel_filename
+
 
 class ExtractPeriodForm(forms.Form):
-    start_date = forms.DateField(input_formats=['%d.%m'], required=True, widget=forms.TextInput(attrs={'placeholder': 'DD.MM'}))
-    end_date = forms.DateField(input_formats=['%d.%m'], required=True, widget=forms.TextInput(attrs={'placeholder': 'DD.MM'}))
+    start_date = forms.DateField(
+        input_formats=['%d.%m'],
+        required=True,
+        widget=forms.TextInput(attrs={'placeholder': 'DD.MM'})
+    )
+    end_date = forms.DateField(
+        input_formats=['%d.%m'],
+        required=True,
+        widget=forms.TextInput(attrs={'placeholder': 'DD.MM'})
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        start = cleaned.get('start_date')
+        end = cleaned.get('end_date')
+
+        # If one of the fields failed basic validation, stop here
+        if not start or not end:
+            return cleaned
+
+        # Prevent cross-year intervals (e.g., 31.12 → 01.01)
+        if start.month == 12 and end.month == 1:
+            raise forms.ValidationError(
+                "The selected date range cannot cross the year boundary (31.12 → 01.01 is not allowed)."
+            )
+
+        # End date must not be earlier than start date
+        if end < start:
+            raise forms.ValidationError(
+                "End date must be later than start date."
+            )
+
+        return cleaned
 
 
 

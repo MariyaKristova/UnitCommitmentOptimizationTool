@@ -83,11 +83,24 @@
     {% if results_csv_file %}
       <a class="btn btn-primary" href="{% url 'download_results_csv' results_csv_file %}">Download Results CSV</a>
     {% endif %}
-  
+
     <!-- Extract Period Form -->
   <div class="text-center mt-4">
       <form method="get" action="{% url 'extracted_result' run_id %}" class="text-center mb-4">
-        {{ extract_form.as_p }}
+        {% if extract_form.non_field_errors %}
+        <div class="alert alert-danger">
+            {{ extract_form.non_field_errors }}
+        </div>
+        {% endif %}
+          {% for field in extract_form %}
+            <div class="mb-2">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.errors %}
+                    <div class="text-danger small">{{ field.errors }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
         <button type="submit" class="btn btn-secondary">Extract period</button>
       </form>
       <a href="/" type="submit" class="btn btn-secondary">Upload another file</a>

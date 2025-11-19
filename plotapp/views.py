@@ -10,8 +10,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pyomo.environ as pyo
 from django.conf import settings
-from pyomo.contrib.appsi.cmodel.appsi_cmodel import param
-
 from .forms import PlantParametersForm, ExtractPeriodForm
 from django.http import Http404, FileResponse, HttpResponse
 from django.shortcuts import render, redirect
@@ -22,16 +20,9 @@ matplotlib.use('Agg')
 # utility functions
 def read_excel_file(excel_filename):
     excel_path = os.path.join(settings.DATA_INPUT_DIR, excel_filename)
-    if not os.path.exists(excel_path):
-        raise Http404(f"Excel file {excel_filename} not found")
-
     df = pd.read_excel(excel_path)
 
-    if 'DateTime' not in df.columns or 'Price' not in df.columns:
-        raise ValueError("Excel file must contain 'DateTime' and 'Price' columns")
-
     df['DateTime'] = pd.to_datetime(df['DateTime'])
-
     bgn_euro_rate = 1.95583
     df['Price'] = df['Price'] * bgn_euro_rate
     market_price = df['Price'].to_numpy()
@@ -42,10 +33,8 @@ def read_excel_file(excel_filename):
 def calculate_degradation(n_hours):
     if n_hours == 365 * 24:
         month_lengths = [31,28,31,30,31,30,31,31,30,31,30,31]
-    elif n_hours == 366 * 24:
-        month_lengths = [31,29,31,30,31,30,31,31,30,31,30,31]
     else:
-        raise ValueError("calculate_degradation: expected full year (365 or 366 days)")
+        month_lengths = [31,29,31,30,31,30,31,31,30,31,30,31]
 
     degradation = np.zeros(n_hours)
     start_idx = 0
@@ -325,7 +314,7 @@ def extracted_result_view(request, run_id):
     results_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_results.csv")), None)
     load_curve_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_load_curve.csv")), None)
     if not results_csv_file or not load_curve_csv_file:
-        raise Http404("required files not found")
+        raise Http404("Required file not found")
 
     # read load curve
     load_curve_df = pd.read_csv(os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv_file), parse_dates=['DateTime'])
@@ -542,3 +531,6 @@ def custom_404(request, exception):
 
 def custom_500(request):
     return render(request, "plotapp/errors/500.html", status=500)
+
+
+
