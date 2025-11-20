@@ -253,7 +253,7 @@ def upload_view(request):
     return render(request, "plotapp/upload.html", {"form": form})
 
 
-def view_result(request, run_id):
+def view_result(request, run_id, extract_form=None):
     files = os.listdir(settings.DATA_OUTPUT_DIR)
 
     results_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_results.csv")), None)
@@ -272,7 +272,8 @@ def view_result(request, run_id):
         image_base64 = base64.b64encode(f.read()).decode("utf-8")
 
     # initialize extract form
-    extract_form = ExtractPeriodForm()
+    if extract_form is None:
+        extract_form = ExtractPeriodForm()
 
     return render_result_template(
         request,
@@ -335,54 +336,57 @@ def extracted_result_view(request, run_id):
                 except:
                     params[key] = value
 
-    extract_form = ExtractPeriodForm(request.GET or None)
+    extract_form = ExtractPeriodForm(request.POST or None)
     financials = {}
     image_base64 = ""
     start_date = None
     end_date = None
 
-    if extract_form.is_valid():
-        start_date = extract_form.cleaned_data['start_date']
-        end_date = extract_form.cleaned_data['end_date']
+    if request.method == "POST":
+        if extract_form.is_valid():
+            start_date = extract_form.cleaned_data['start_date']
+            end_date = extract_form.cleaned_data['end_date']
 
-        year = load_curve_df['DateTime'].dt.year.iloc[0]
-        start_dt = start_date.replace(year=year)
-        end_dt = end_date.replace(year=year)
+            year = load_curve_df['DateTime'].dt.year.iloc[0]
+            start_dt = start_date.replace(year=year)
+            end_dt = end_date.replace(year=year)
 
-        mask = (load_curve_df['DateTime'] >= pd.Timestamp(start_dt)) & (load_curve_df['DateTime'] <= pd.Timestamp(end_dt))
-        period_df = load_curve_df.loc[mask].copy()
-        if period_df.empty:
-            raise Http404("no data for selected period")
+            mask = (load_curve_df['DateTime'] >= pd.Timestamp(start_dt)) & (load_curve_df['DateTime'] <= pd.Timestamp(end_dt))
+            period_df = load_curve_df.loc[mask].copy()
+            if period_df.empty:
+                extract_form.add_error(None, "No data for selected period")
+            else:
+                # extract data for financials and plot
+                T = list(range(len(period_df)))
+                power = period_df["Power_Output_MW"].to_list()
+                commitment = period_df["Commitment"].to_list()
+                startups = period_df["Startups"].to_list()
+                market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
+                degradation = np.ones(len(period_df))
 
-        # extract data for financials and plot
-        T = list(range(len(period_df)))
-        power = period_df["Power_Output_MW"].to_list()
-        commitment = period_df["Commitment"].to_list()
-        startups = period_df["Startups"].to_list()
-        market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
-        degradation = np.ones(len(period_df))
+                # compute financials
+                financials = compute_financials(power, commitment, startups, market_price, params, degradation)
 
-        # compute financials
-        financials = compute_financials(power, commitment, startups, market_price, params, degradation)
+                # generate PNG in memory
+                fig, ax = plt.subplots(figsize=(12, 6))
+                ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
+                ax.step(T, power, where='mid', label="Power Output (MW)", linewidth=2)
+                ax.fill_between(T, 0, [params['max_power'] * u for u in commitment], color='lightgreen', alpha=0.3, step='mid',
+                                label="Committed")
+                ax.set_xlabel("Hour")
+                ax.set_ylabel("Value")
+                ax.set_title("Unit Commitment with Economic Dispatch (Extracted)")
+                ax.legend()
+                ax.grid(True)
+                plt.tight_layout()
 
-        # generate PNG in memory
-        fig, ax = plt.subplots(figsize=(12, 6))
-        ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
-        ax.step(T, power, where='mid', label="Power Output (MW)", linewidth=2)
-        ax.fill_between(T, 0, [params['max_power'] * u for u in commitment], color='lightgreen', alpha=0.3, step='mid',
-                        label="Committed")
-        ax.set_xlabel("Hour")
-        ax.set_ylabel("Value")
-        ax.set_title("Unit Commitment with Economic Dispatch (Extracted)")
-        ax.legend()
-        ax.grid(True)
-        plt.tight_layout()
-
-        png_buffer = BytesIO()
-        fig.savefig(png_buffer, format='png')
-        plt.close(fig)
-        png_buffer.seek(0)
-        image_base64 = base64.b64encode(png_buffer.read()).decode("utf-8")
+                png_buffer = BytesIO()
+                fig.savefig(png_buffer, format='png')
+                plt.close(fig)
+                png_buffer.seek(0)
+                image_base64 = base64.b64encode(png_buffer.read()).decode("utf-8")
+        else:
+            return view_result(request, run_id, extract_form=extract_form)
 
     context = {
         "image": image_base64,

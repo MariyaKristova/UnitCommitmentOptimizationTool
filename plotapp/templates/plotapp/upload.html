@@ -6,18 +6,21 @@
     <h2 class="text-center mb-4">Unit Commitment Optimizer</h2>
     <form id="uploadForm" method="POST" enctype="multipart/form-data" class="row g-3">
         {% csrf_token %}
+    
         {% for field in form %}
-        <div class="col-md-6">
-            <label class="form-label fw-bold">{{ field.label }}</label>
-            {{ field }}
-            {% if field.errors %}
-              <div class="alert alert-danger mt-1 p-2">
-                  {% for error in field.errors %}
-                      {{ error }}<br>
-                  {% endfor %}
-              </div>
-            {% endif %}
-        </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">{{ field.label }}</label>
+                {{ field }}
+            
+                {% if field.errors %}
+                  <div class="alert alert-danger mt-1 p-2">
+                      {% for error in field.errors %}
+                          {{ error }}<br>
+                      {% endfor %}
+                  </div>
+                {% endif %}
+            
+            </div>
         {% endfor %}
         <div class="col-12 mt-3 text-center">
             <button type="submit" id="submitButton" class="btn btn-primary btn-lg position-relative">

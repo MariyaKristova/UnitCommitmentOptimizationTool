@@ -75,18 +75,12 @@ class ExtractPeriodForm(forms.Form):
         start = cleaned.get('start_date')
         end = cleaned.get('end_date')
 
-        # If one of the fields failed basic validation, stop here
+        # if one of the fields failed basic validation, stop here
         if not start or not end:
             return cleaned
 
-        # Prevent cross-year intervals (e.g., 31.12 → 01.01)
-        if start.month == 12 and end.month == 1:
-            raise forms.ValidationError(
-                "The selected date range cannot cross the year boundary (31.12 → 01.01 is not allowed)."
-            )
-
-        # End date must not be earlier than start date
-        if end < start:
+        # end date must not be the same or earlier than start date
+        if end <= start:
             raise forms.ValidationError(
                 "End date must be later than start date."
             )
