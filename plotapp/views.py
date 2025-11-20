@@ -30,7 +30,14 @@ def read_excel_file(excel_filename):
     return df, market_price
 
 
-def calculate_degradation(n_hours):
+def calculate_degradation(n_hours, year):
+    # plant started on 09.05.2011
+    START_YEAR = 2011
+    START_MONTH = 5
+    total_months_elapsed = (year - START_YEAR) * 12 + (START_MONTH - 1)
+
+    months = range(total_months_elapsed, total_months_elapsed+12)
+
     if n_hours == 365 * 24:
         month_lengths = [31,28,31,30,31,30,31,31,30,31,30,31]
     else:
@@ -42,7 +49,7 @@ def calculate_degradation(n_hours):
         stop_idx = start_idx + month_length * 24
         if stop_idx > n_hours:
             stop_idx = n_hours
-        degradation[start_idx:stop_idx] = 1.071 + 0.0002 * idx
+        degradation[start_idx:stop_idx] = 1.071 + 0.0002 * months[idx]
         start_idx = stop_idx
 
     return degradation
@@ -195,7 +202,8 @@ def upload_view(request):
             n_hours = len(df)
 
             # calculate degradation
-            degradation = calculate_degradation(n_hours)
+            year = df['DateTime'].dt.year.iloc[0]
+            degradation = calculate_degradation(n_hours, year)
 
             # prepare parameters
             params = {k: form.cleaned_data[k] for k in [
@@ -362,7 +370,8 @@ def extracted_result_view(request, run_id):
                 commitment = period_df["Commitment"].to_list()
                 startups = period_df["Startups"].to_list()
                 market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
-                degradation = np.ones(len(period_df))
+                year = period_df['DateTime'].dt.year.iloc[0]
+                degradation = calculate_degradation(len(period_df), year)
 
                 # compute financials
                 financials = compute_financials(power, commitment, startups, market_price, params, degradation)
@@ -447,7 +456,8 @@ def download_extracted_zip(request, run_id):
     commitment = period_df["Commitment"].to_list()
     startups = period_df["Startups"].to_list()
     market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
-    degradation = np.ones(len(period_df))
+    year = period_df['DateTime'].dt.year.iloc[0]
+    degradation = calculate_degradation(len(period_df), year)
 
     financials = compute_financials(power, commitment, startups, market_price, params, degradation)
 
@@ -490,7 +500,6 @@ def download_extracted_zip(request, run_id):
     response = HttpResponse(zip_buffer, content_type="application/zip")
     response['Content-Disposition'] = f'attachment; filename={run_id}_extracted.zip'
     return response
-
 
 
 def all_results(request):
