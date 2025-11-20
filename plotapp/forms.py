@@ -86,6 +86,3 @@ class ExtractPeriodForm(forms.Form):
             )
 
         return cleaned
-
-
-
